@@ -1,0 +1,47 @@
+import pandas as pd
+import plotly.graph_objects as go
+import webbrowser
+
+df_total = pd.read_excel("C:\\Users\\38670\\Documents\\Documents\\劳动人口参与率年度中国 .xlsx", skiprows=10)
+df_male = pd.read_excel("C:\\Users\\38670\\Documents\\Documents\\劳动人口参与率（15岁以上男性）.xlsx", skiprows=10)
+df_female = pd.read_excel("C:\\Users\\38670\\Documents\\Documents\\劳动人口参与率（15岁以上女性）.xlsx", skiprows=10)
+
+df_total.columns = ['Year', 'Total_LFPR']
+df_male.columns = ['Year', 'Male_LFPR']
+df_female.columns = ['Year', 'Female_LFPR']
+
+#合并
+df = df_total.merge(df_male, on='Year').merge(df_female, on='Year')
+
+df['Male_LFPR'] = pd.to_numeric(df['Male_LFPR'], errors='coerce')
+df['Female_LFPR'] = pd.to_numeric(df['Female_LFPR'], errors='coerce')
+
+fig = go.Figure()
+
+fig.add_trace(go.Bar(
+    x=df['Year'],
+    y=df['Female_LFPR'],
+    name='Female',
+    marker_color='lightcoral'
+))
+
+fig.add_trace(go.Bar(
+    x=df['Year'],
+    y=df['Male_LFPR'],
+    name='Male',
+    marker_color='steelblue'
+))
+
+fig.update_layout(
+    barmode='group',
+    title="Labor Force Participation Rate by Gender in China (2000–2023)",
+    xaxis_title="Year",
+    yaxis_title="Participation Rate (%)",
+    legend_title="Gender",
+    template="plotly_white",
+    yaxis=dict(range=[0, 100])
+)
+
+output_path = "lfpr_gender_stack_plotly.html"
+fig.write_html(output_path)
+webbrowser.open(output_path)
