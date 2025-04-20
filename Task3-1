@@ -1,0 +1,51 @@
+import pandas as pd
+import statsmodels.api as sm
+import plotly.graph_objects as go
+
+df_cn = pd.read_excel("data/总体和青年失业率.xlsx")
+df_us_gdp = pd.read_excel("data/USA2000-2023GDP.xlsx", header=None)
+df_cn_gdp = pd.read_excel("data/中国2000-2023GDP.xlsx", header=None)
+df_us_urate = pd.read_csv("data/Unemployment Rate (Youth, ages 16–24).csv")
+
+gdp_values = df_cn_gdp.iloc[1, 1:].astype(float).values
+gdp_years = df_cn_gdp.iloc[0, 1:].astype(int).values
+df_cn_gdp_clean = pd.DataFrame({ "Year": gdp_years, "GDP": gdp_values })
+df_cn_gdp_clean["GDP_Growth"] = df_cn_gdp_clean["GDP"].pct_change() * 100
+
+df_cn_urate = df_cn[["年份", "16 - 24 岁青年失业率（%）"]].rename(columns={"年份": "Year", "16 - 24 岁青年失业率（%）": "CN_Youth_Unemployment"})
+df_cn_model = pd.merge(df_cn_gdp_clean, df_cn_urate, on="Year", how="inner")
+
+df_us_gdp_clean = df_us_gdp.rename(columns={0: "Year", 1: "GDP"}).iloc[1:]
+df_us_gdp_clean["Year"] = df_us_gdp_clean["Year"].astype(int)
+df_us_gdp_clean["GDP"] = df_us_gdp_clean["GDP"].astype(float)
+df_us_gdp_clean["GDP_Growth"] = df_us_gdp_clean["GDP"].pct_change() * 100
+
+df_us_urate['Year'] = pd.to_datetime(df_us_urate['observation_date']).dt.year
+df_us_youthurate = df_us_urate[["Year", "LNS14024887"]].rename(columns={"LNS14024887": "US_Youth_Unemployment"})
+df_us_model = pd.merge(df_us_gdp_clean, df_us_youthurate, on="Year", how="inner")
+
+# Regression: China 
+cn_df = df_cn_model.dropna(subset=["GDP_Growth", "CN_Youth_Unemployment"])
+X_cn = sm.add_constant(cn_df["GDP_Growth"])
+y_cn = cn_df["CN_Youth_Unemployment"]
+model_cn = sm.OLS(y_cn, X_cn).fit()
+print("China Regression Summary:\\n", model_cn.summary())
+
+# Regression: US 
+us_df = df_us_model.dropna(subset=["GDP_Growth", "US_Youth_Unemployment"])
+X_us = sm.add_constant(us_df["GDP_Growth"])
+y_us = us_df["US_Youth_Unemployment"]
+model_us = sm.OLS(y_us, X_us).fit()
+print("US Regression Summary:\\n", model_us.summary())
+
+fig_cn = go.Figure()
+fig_cn.add_trace(go.Scatter(x=cn_df["GDP_Growth"], y=cn_df["CN_Youth_Unemployment"], mode='markers', name='China Data'))
+fig_cn.add_trace(go.Scatter(x=cn_df["GDP_Growth"], y=model_cn.predict(X_cn), mode='lines', name='China Fit'))
+fig_cn.update_layout(title="China: Youth Unemployment vs. GDP Growth", xaxis_title="GDP Growth Rate (%)", yaxis_title="Youth Unemployment Rate (%)", template="plotly_white")
+fig_cn.write_html("outputs/China_Regression.html")
+
+fig_us = go.Figure()
+fig_us.add_trace(go.Scatter(x=us_df["GDP_Growth"], y=us_df["US_Youth_Unemployment"], mode='markers', name='US Data'))
+fig_us.add_trace(go.Scatter(x=us_df["GDP_Growth"], y=model_us.predict(X_us), mode='lines', name='US Fit'))
+fig_us.update_layout(title="US: Youth Unemployment vs. GDP Growth", xaxis_title="GDP Growth Rate (%)", yaxis_title="Youth Unemployment Rate (%)", template="plotly_white")
+fig_us.write_html("outputs/US_Regression.html")
